@@ -1,31 +1,59 @@
-#!/usr/bin/node
+/* eslint-disable */
+import { ObjectId } from 'mongodb';
+import dbClient from '../utils/db';
+import redisClient from '../utils/redis';
 
-const dbClient = require('../utils/db');
+const sha1 = require('sha1');
 
-class UsersController {
-  static async postNew(req, res) {
-    const { email, password } = req.body;
-    if (!email) {
-      res.status(400).json({ error: 'Missing email' });
-      res.end();
-      return;
+// POST /users should create a new user in DB
+export async function postNew(req, res) {
+
+  try {
+    const userEmail = req.body.email;
+    if (!userEmail) {
+      return res.status(400).send({
+        error: 'Missing email',
+      });
     }
-    if (!password) {
-      res.status(400).json({ error: 'Missing password' });
-      res.end();
-      return;
+
+    const userPassword = req.body.password;
+    if (!userPassword) {
+      return res.status(400).send({
+        error: 'Missing password',
+      });
     }
-    const userExist = await dbClient.userExist(email);
-    if (userExist) {
-      res.status(400).json({ error: 'Already exist' });
-      res.end();
-      return;
+    
+    let existingEmail = await dbClient.db.collection('users').findOne({ email: userEmail });
+    if (existingEmail) {
+      return res.status(400).send({
+        error: 'Already exist',
+      });
     }
-    const user = await dbClient.createUser(email, password);
-    const id = `${user.insertedId}`;
-    res.status(201).json({ id, email });
-    res.end();
+
+    let userId;
+    const hashedPw = sha1(userPassword);
+    const newUser = {
+      email: userEmail,
+      password: hashedPw,
+    };
+
+    try {
+      await dbClient.db.collection('users').insertOne(newUser, (err) => {
+        userId = newUser._id;
+        return res.status(201).send({
+          email: userEmail,
+          id: userId,
+        });
+      });
+    } catch (err) {
+      return res.status(err.status).send({
+        'error': err,
+      });
+    }
+
+  } catch (error) {
+    return res.status(500).send({
+      error: 'Server error',
+    });
   }
 }
-
-module.exports = UsersController;
