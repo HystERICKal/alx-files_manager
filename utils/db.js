@@ -1,35 +1,59 @@
-import { MongoClient } from 'mongodb';
-
-const DB_HOST = process.env.DB_HOST || 'localhost';
-const DB_PORT = process.env.DB_PORT || 27017;
-const DB_DATABASE = process.env.DB_DATABASE || 'files_manager';
-const url = `mongodb://${DB_HOST}:${DB_PORT}`;
+import mongodb from "mongodb";
+import Collection from "mongodb/lib/collection";
+import envLoader from "./env_loader";
 
 class DBClient {
   constructor() {
-    MongoClient.connect(url, (error, client) => {
-      if (error) {
-        console.log(error.message);
-        this.db = false;
-        return;
-      }
-      this.db = client.db(DB_DATABASE);
-      this.users = this.db.collection('users');
-      this.files = this.db.collection('files');
-    });
+    envLoader();
+    const host = process.env.DB_HOST || "localhost";
+    const port = process.env.DB_PORT || 27017;
+    const database = process.env.DB_DATABASE || "files_manager";
+    const dbURL = `mongodb://${host}:${port}/${database}`;
+
+    this.client = new mongodb.MongoClient(dbURL, { useUnifiedTopology: true });
+    this.client.connect();
   }
 
+  /**
+   * function.
+   * @returns {boolean}
+   */
   isAlive() {
-    return !!this.db;
+    return this.client.isConnected();
   }
 
+  /**
+   * function.
+   * @returns {Promise<Number>}
+   */
   async nbUsers() {
-    return this.users.countDocuments();
+    return this.client.db().collection("users").countDocuments();
   }
 
+  /**
+   * function.
+   * @returns {Promise<Number>}
+   */
   async nbFiles() {
-    return this.files.countDocuments();
+    return this.client.db().collection("files").countDocuments();
+  }
+
+  /**
+   * function.
+   * @returns {Promise<Collection>}
+   */
+  async usersCollection() {
+    return this.client.db().collection("users");
+  }
+
+  /**
+   * function.
+   * @returns {Promise<Collection>}
+   */
+  async filesCollection() {
+    return this.client.db().collection("files");
   }
 }
-const dbClient = new DBClient();
+
+export const dbClient = new DBClient();
 export default dbClient;
